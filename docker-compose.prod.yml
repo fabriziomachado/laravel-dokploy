@@ -33,7 +33,8 @@ services:
       - SESSION_DRIVER=${SESSION_DRIVER:-database}
       - CACHE_STORE=${CACHE_STORE:-redis}
       - QUEUE_CONNECTION=${QUEUE_CONNECTION:-database}
-      - LOG_CHANNEL=${LOG_CHANNEL:-docker}
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+      - LOG_STACK=${LOG_STACK:-single,stderr}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - MAIL_MAILER=${MAIL_MAILER:-smtp}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}

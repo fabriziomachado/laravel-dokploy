@@ -60,12 +60,6 @@ return [
             'ignore_exceptions' => false,
         ],
 
-        'docker' => [
-            'driver' => 'stack',
-            'channels' => ['single', 'stderr'],
-            'ignore_exceptions' => false,
-        ],
-
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),

@@ -76,6 +76,10 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 # Debug: Show APP_KEY (first 10 chars only for security)\n\
 echo "APP_KEY: ${APP_KEY:0:10}..."\n\
+# Clear old cache before regenerating\n\
+php artisan config:clear\n\
+php artisan route:clear\n\
+php artisan view:clear\n\
 # Cache configurations after environment variables are loaded\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
