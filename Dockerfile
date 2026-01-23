@@ -5,7 +5,14 @@ RUN apt-get update && apt-get install -y \
     git unzip curl libpng-dev libonig-dev libxml2-dev \
     libzip-dev libpq-dev libcurl4-openssl-dev libssl-dev \
     zlib1g-dev libicu-dev g++ libevent-dev procps \
-    && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring zip exif pcntl bcmath sockets intl
+    pkg-config libhiredis-dev \
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring zip exif pcntl bcmath sockets intl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Redis extension via PECL
+RUN pecl install redis \
+    && docker-php-ext-enable redis
 
 # Swoole is installed from GitHub (PHP 8.4 compatible version)
 RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/tags/v6.0.0.tar.gz \
@@ -15,11 +22,15 @@ RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/t
     && ./configure \
     && make -j$(nproc) \
     && make install \
-    && docker-php-ext-enable swoole
+    && docker-php-ext-enable swoole \
+    && cd / \
+    && rm -rf swoole-src-6.0.0 swoole.tar.gz
 
 # Node.js 18 (Vite compatible)
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Composer installation
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -62,6 +73,9 @@ EXPOSE 9000
 
 # Startup script
 RUN echo '#!/bin/bash\n\
+set -e\n\
+# Debug: Show APP_KEY (first 10 chars only for security)\n\
+echo "APP_KEY: ${APP_KEY:0:10}..."\n\
 # Cache configurations after environment variables are loaded\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
@@ -70,4 +84,4 @@ php artisan view:cache\n\
 exec php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000\n\
 ' > /start.sh && chmod +x /start.sh
 
-CMD ["sh", "-c", "echo 'APP_KEY:' $APP_KEY && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000"]
+CMD ["/start.sh"]
