@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
 RUN pecl install redis \
     && docker-php-ext-enable redis
 
+# Configure PHP to send error_log to stderr (for Docker logs)
+RUN echo "log_errors = On" >> /usr/local/etc/php/conf.d/docker-php-log.ini \
+    && echo "error_log = /proc/self/fd/2" >> /usr/local/etc/php/conf.d/docker-php-log.ini
+
 # Swoole is installed from GitHub (PHP 8.4 compatible version)
 RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/tags/v6.0.0.tar.gz \
     && tar -xf swoole.tar.gz \
@@ -75,7 +79,7 @@ EXPOSE 9000
 RUN echo '#!/bin/bash\n\
 set -e\n\
 # Debug: Show APP_KEY (first 10 chars only for security)\n\
-echo "APP_KEY: ${APP_KEY:0:10}..."\n\
+echo "APP_KEY: ${APP_KEY:0:10}..." >&2\n\
 # Clear old cache before regenerating\n\
 php artisan config:clear\n\
 php artisan route:clear\n\
@@ -84,6 +88,8 @@ php artisan view:clear\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
+# Test logging to stderr\n\
+php artisan tinker --execute="Log::info(\"Laravel logging test - logs should appear in Dokploy\")" 2>&1 || true\n\
 # Start the server\n\
 exec php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000\n\
 ' > /start.sh && chmod +x /start.sh
