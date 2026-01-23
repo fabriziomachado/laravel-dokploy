@@ -17,10 +17,9 @@ RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/t
     && make install \
     && docker-php-ext-enable swoole
 
-# Node.js 18 (Vite compatible) and Yarn installation
+# Node.js 18 (Vite compatible)
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g yarn
+    && apt-get install -y nodejs
 
 # Composer installation
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -38,8 +37,8 @@ RUN mkdir -p bootstrap/cache storage/app storage/framework/cache/data \
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
 # Node files (cache for Vite build)
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # Copy the rest of the project files
 COPY . .
@@ -48,7 +47,7 @@ COPY . .
 RUN composer dump-autoload --optimize
 
 # Vite build
-RUN yarn build
+RUN npm run build
 
 # Laravel config cache (to be done at runtime, not during build)
 RUN php artisan config:clear \
