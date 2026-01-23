@@ -1,57 +1,32 @@
 version: '3.8'
 
 # =============================================================================
-# Docker Compose Stack para Dokploy (Docker Swarm Mode)
+# Docker Compose Stack para TESTE LOCAL (sem registry)
 # =============================================================================
-# Este arquivo é otimizado para deploy com Docker Stack no Dokploy.
-# Diferenças do docker-compose.yml:
-#   - Usa imagem pré-construída (não suporta build:)
-#   - Configuração de réplicas e recursos
-#   - Políticas de update e rollback
-#   - Placement constraints para persistência
-#
-# Deploy: docker stack deploy -c docker-compose.stack.yml --with-registry-auth laravel-stack
+# Este arquivo é para testar localmente antes de fazer push para registry.
+# 
+# Como usar:
+#   1. Build local: docker build -t laravel-dokploy-local:latest .
+#   2. Deploy: docker stack deploy -c docker-compose.stack.local.yml laravel-stack
+# 
+# ⚠️ NÃO use este arquivo no Dokploy - use docker-compose.stack.yml
 # =============================================================================
 
 services:
-
   app:
-    # Imagem pré-construída no registry (Stack não suporta build)
-    # ⚠️ IMPORTANTE: Substitua pela sua imagem completa antes do deploy
-    # 
-    # O Dokploy não fornece registry local. Você precisa usar um dos seguintes:
-    # 
-    # 1. Docker Hub (público ou privado):
-    #    image: docker.io/seu-usuario/laravel-dokploy:latest
-    #    # Ou apenas: seu-usuario/laravel-dokploy:latest
-    # 
-    # 2. GitHub Container Registry (GHCR):
-    #    image: ghcr.io/seu-usuario/laravel-dokploy:latest
-    # 
-    # 3. Digital Ocean Registry:
-    #    image: registry.digitalocean.com/seu-registry/laravel-dokploy:latest
-    # 
-    # 4. Registry privado próprio:
-    #    image: seu-registry.com/laravel-dokploy:latest
-    # 
-    # ⚠️ IMPORTANTE: Build Server do Dokploy NÃO funciona para Docker Stack
-    # Você precisa fazer build e push manualmente antes do deploy
-    # 
-    # Opções:
-    # 1. Build manual: docker build -t fabriziomachado/laravel-dokploy:latest . && docker push fabriziomachado/laravel-dokploy:latest
-    # 2. Use o script: ./build-and-push.sh fabriziomachado/laravel-dokploy latest
-    # 3. Configure CI/CD (GitHub Actions, GitLab CI, etc.) para fazer build automático
-    image: fabriziomachado/laravel-dokploy:latest
+    # Imagem local (já buildada)
+    image: laravel-dokploy-local:latest
+    
     ports:
       - "9000"
-
+    
     networks:
       - dokploy-network
-
+    
     volumes:
       - laravel-storage:/var/www/storage
       - laravel-bootstrap-cache:/var/www/bootstrap/cache
-
+    
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_KEY=${APP_KEY}
@@ -80,29 +55,23 @@ services:
       - MAIL_FROM_NAME=${MAIL_FROM_NAME:-${APP_NAME}}
       - OCTANE_SERVER=${OCTANE_SERVER:-swoole}
       - OCTANE_HTTPS=${OCTANE_HTTPS:-false}
-
-    # Stack mode: depends_on sem conditions (apenas ordem de inicialização)
+    
     depends_on:
       - database
       - redis
-
+    
     healthcheck:
       test: ["CMD", "php", "artisan", "octane:status"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-    # Deploy configuration (Stack/Swarm specific)
+    
     deploy:
       mode: replicated
       replicas: ${APP_REPLICAS:-2}
-
-      # Placement constraints
       placement:
         max_replicas_per_node: 2
-
-      # Resource limits and reservations
       resources:
         limits:
           cpus: '2'
@@ -110,73 +79,47 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-
-      # Restart policy (substitui restart: no compose)
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 3
         window: 120s
-
-      # Update configuration (zero-downtime deployments)
       update_config:
         parallelism: 1
         delay: 10s
         failure_action: rollback
         order: start-first
-        monitor: 30s
-
-      # Rollback configuration
       rollback_config:
         parallelism: 1
         delay: 5s
 
-      # Labels Traefik (configurar via Dokploy UI de preferência)
-      # labels:
-      #   - "traefik.enable=true"
-      #   - "traefik.http.routers.laravel-app.rule=Host(`${APP_DOMAIN}`)"
-      #   - "traefik.http.routers.laravel-app.entrypoints=websecure"
-      #   - "traefik.http.routers.laravel-app.tls.certResolver=letsencrypt"
-      #   - "traefik.http.services.laravel-app.loadbalancer.server.port=9000"
-      #   - "traefik.http.routers.laravel-app.middlewares=compression@docker"
-
   database:
     image: mysql:8.0
-
     networks:
       - dokploy-network
-
     volumes:
       - laravel-db:/var/lib/mysql
-
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_DATABASE}
       - MYSQL_USER=${DB_USERNAME}
       - MYSQL_PASSWORD=${DB_PASSWORD}
-
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
     command: >
       --default-authentication-plugin=mysql_native_password
       --max_connections=200
       --innodb_buffer_pool_size=512M
-
-    # Deploy configuration (single replica para database)
     deploy:
       mode: replicated
       replicas: 1
-
-      # Database deve rodar sempre no mesmo node (para consistência de volumes)
       placement:
         constraints:
           - node.role == manager
-
       resources:
         limits:
           cpus: '1'
@@ -184,7 +127,6 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
-
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -193,35 +135,26 @@ services:
 
   redis:
     image: redis:7-alpine
-
     networks:
       - dokploy-network
-
     volumes:
       - laravel-redis:/data
-
     command: >
       redis-server
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-    # Deploy configuration (single replica para cache centralizado)
     deploy:
       mode: replicated
       replicas: 1
-
-      # Redis deve rodar sempre no mesmo node (para consistência de cache)
       placement:
         constraints:
           - node.role == manager
-
       resources:
         limits:
           cpus: '0.5'
@@ -229,16 +162,12 @@ services:
         reservations:
           cpus: '0.1'
           memory: 128M
-
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 3
         window: 120s
 
-# =============================================================================
-# Volumes - Docker Named Volumes (compatível com Volume Backups do Dokploy)
-# =============================================================================
 volumes:
   laravel-db:
     driver: local
@@ -249,9 +178,6 @@ volumes:
   laravel-bootstrap-cache:
     driver: local
 
-# =============================================================================
-# Networks - Rede externa do Dokploy
-# =============================================================================
 networks:
   dokploy-network:
     external: true
