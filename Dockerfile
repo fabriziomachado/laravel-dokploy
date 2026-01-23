@@ -1,4 +1,4 @@
-FROM php:8.3-cli AS base
+FROM php:8.4-cli AS base
 
 # System packages and PHP extensions
 RUN apt-get update && apt-get install -y \
@@ -7,10 +7,10 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev libicu-dev g++ libevent-dev procps \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring zip exif pcntl bcmath sockets intl
 
-# Swoole is installed from GitHub
-RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/tags/v5.1.0.tar.gz \
+# Swoole is installed from GitHub (PHP 8.4 compatible version)
+RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/tags/v6.0.0.tar.gz \
     && tar -xf swoole.tar.gz \
-    && cd swoole-src-5.1.0 \
+    && cd swoole-src-6.0.0 \
     && phpize \
     && ./configure \
     && make -j$(nproc) \
