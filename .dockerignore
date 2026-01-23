@@ -5,4 +5,11 @@ storage/framework/sessions
 storage/framework/views
 storage/framework/cache
 .env
+.env.*
+!.env.example
 .git
+tests/
+*.md
+.gitignore
+.dockerignore
+docker-compose*.yml
