@@ -1,0 +1,234 @@
+version: '3.8'
+
+# =============================================================================
+# Docker Compose Stack para Dokploy (Docker Swarm Mode)
+# =============================================================================
+# Este arquivo é otimizado para deploy com Docker Stack no Dokploy.
+# Diferenças do docker-compose.yml:
+#   - Usa imagem pré-construída (não suporta build:)
+#   - Configuração de réplicas e recursos
+#   - Políticas de update e rollback
+#   - Placement constraints para persistência
+#
+# Deploy: docker stack deploy -c docker-compose.stack.yml --with-registry-auth laravel-stack
+# =============================================================================
+
+services:
+  app:
+    # Imagem pré-construída no registry (Stack não suporta build)
+    image: ${DOCKER_REGISTRY:-registry.dokploy.local}/laravel-dokploy:${IMAGE_TAG:-latest}
+    
+    ports:
+      - "9000"
+    
+    networks:
+      - dokploy-network
+    
+    volumes:
+      - laravel-storage:/var/www/storage
+      - laravel-bootstrap-cache:/var/www/bootstrap/cache
+    
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_URL=${APP_URL}
+      - APP_LOCALE=${APP_LOCALE:-en}
+      - APP_FALLBACK_LOCALE=${APP_FALLBACK_LOCALE:-en}
+      - DB_CONNECTION=${DB_CONNECTION:-mysql}
+      - DB_HOST=database
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_CLIENT=${REDIS_CLIENT:-phpredis}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-null}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - SESSION_DRIVER=${SESSION_DRIVER:-database}
+      - CACHE_STORE=${CACHE_STORE:-redis}
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-database}
+      - LOG_CHANNEL=${LOG_CHANNEL:-stack}
+      - LOG_STACK=${LOG_STACK:-single,errorlog}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-${APP_NAME}}
+      - OCTANE_SERVER=${OCTANE_SERVER:-swoole}
+      - OCTANE_HTTPS=${OCTANE_HTTPS:-false}
+    
+    # Stack mode: depends_on sem conditions (apenas ordem de inicialização)
+    depends_on:
+      - database
+      - redis
+    
+    healthcheck:
+      test: ["CMD", "php", "artisan", "octane:status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Deploy configuration (Stack/Swarm specific)
+    deploy:
+      mode: replicated
+      replicas: ${APP_REPLICAS:-2}
+      
+      # Placement constraints
+      placement:
+        max_replicas_per_node: 2
+      
+      # Resource limits and reservations
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      
+      # Restart policy (substitui restart: no compose)
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      
+      # Update configuration (zero-downtime deployments)
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+        monitor: 30s
+      
+      # Rollback configuration
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      
+      # Labels Traefik (configurar via Dokploy UI de preferência)
+      # labels:
+      #   - "traefik.enable=true"
+      #   - "traefik.http.routers.laravel-app.rule=Host(`${APP_DOMAIN}`)"
+      #   - "traefik.http.routers.laravel-app.entrypoints=websecure"
+      #   - "traefik.http.routers.laravel-app.tls.certResolver=letsencrypt"
+      #   - "traefik.http.services.laravel-app.loadbalancer.server.port=9000"
+      #   - "traefik.http.routers.laravel-app.middlewares=compression@docker"
+
+  database:
+    image: mysql:8.0
+    
+    networks:
+      - dokploy-network
+    
+    volumes:
+      - laravel-db:/var/lib/mysql
+    
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_DATABASE}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --max_connections=200
+      --innodb_buffer_pool_size=512M
+    
+    # Deploy configuration (single replica para database)
+    deploy:
+      mode: replicated
+      replicas: 1
+      
+      # Database deve rodar sempre no mesmo node (para consistência de volumes)
+      placement:
+        constraints:
+          - node.role == manager
+      
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+
+  redis:
+    image: redis:7-alpine
+    
+    networks:
+      - dokploy-network
+    
+    volumes:
+      - laravel-redis:/data
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    # Deploy configuration (single replica para cache centralizado)
+    deploy:
+      mode: replicated
+      replicas: 1
+      
+      # Redis deve rodar sempre no mesmo node (para consistência de cache)
+      placement:
+        constraints:
+          - node.role == manager
+      
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+# =============================================================================
+# Volumes - Docker Named Volumes (compatível com Volume Backups do Dokploy)
+# =============================================================================
+volumes:
+  laravel-db:
+    driver: local
+  laravel-redis:
+    driver: local
+  laravel-storage:
+    driver: local
+  laravel-bootstrap-cache:
+    driver: local
+
+# =============================================================================
+# Networks - Rede externa do Dokploy
+# =============================================================================
+networks:
+  dokploy-network:
+    external: true
+    name: dokploy-network
