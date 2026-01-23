@@ -39,7 +39,7 @@ services:
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
       - MAIL_FROM_NAME=${MAIL_FROM_NAME:-${APP_NAME}}
       - OCTANE_SERVER=${OCTANE_SERVER:-swoole}
-      - OCTANE_HTTPS=${OCTANE_HTTPS:-true}
+      - OCTANE_HTTPS=${OCTANE_HTTPS:-false}
     depends_on:
       database:
         condition: service_healthy
@@ -59,13 +59,13 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.laravel-app.rule=Host(`${APP_DOMAIN}`)"
-      - "traefik.http.routers.laravel-app.entrypoints=websecure"
-      - "traefik.http.routers.laravel-app.tls.certResolver=letsencrypt"
-      - "traefik.http.services.laravel-app.loadbalancer.server.port=9000"
-      - "traefik.http.routers.laravel-app.middlewares=compression@docker"
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.laravel-app.rule=Host(`${APP_DOMAIN}`)"
+    #   - "traefik.http.routers.laravel-app.entrypoints=websecure"
+    #   - "traefik.http.routers.laravel-app.tls.certResolver=letsencrypt"
+    #   - "traefik.http.services.laravel-app.loadbalancer.server.port=9000"
+    #   - "traefik.http.routers.laravel-app.middlewares=compression@docker"
 
   database:
     image: mysql:8.0
