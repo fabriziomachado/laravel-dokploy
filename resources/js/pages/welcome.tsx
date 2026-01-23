@@ -3,7 +3,7 @@ import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
 
 export default function Welcome() {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, container } = usePage<SharedData>().props;
 
     return (
         <>
@@ -800,6 +800,11 @@ export default function Welcome() {
                     </main>
                 </div>
                 <div className="hidden h-14.5 lg:block"></div>
+
+                {/* Container Badge - Canto inferior direito */}
+                <div className="fixed bottom-4 right-4 rounded-full bg-gray-800/80 px-3 py-1 text-xs text-gray-300 font-mono backdrop-blur-sm">
+                    {container}
+                </div>
             </div>
         </>
     );
