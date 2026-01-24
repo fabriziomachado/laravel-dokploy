@@ -75,23 +75,10 @@ RUN chown -R www-data:www-data /var/www \
 
 EXPOSE 9000
 
-# Startup script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-# Debug: Show APP_KEY (first 10 chars only for security)\n\
-echo "APP_KEY: ${APP_KEY:0:10}..." >&2\n\
-# Clear old cache before regenerating\n\
-php artisan config:clear\n\
-php artisan route:clear\n\
-php artisan view:clear\n\
-# Cache configurations after environment variables are loaded\n\
-php artisan config:cache\n\
-php artisan route:cache\n\
-php artisan view:cache\n\
-# Test logging to stderr\n\
-php artisan tinker --execute="Log::info(\"Laravel logging test - logs should appear in Dokploy\")" 2>&1 || true\n\
-# Start the server\n\
-exec php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000\n\
-' > /start.sh && chmod +x /start.sh
+# Entrypoint script (pode ser sobrescrito no docker-compose)
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-CMD ["/start.sh"]
+# Default command (pode ser sobrescrito no docker-compose)
+CMD ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=9000"]
+ENTRYPOINT ["docker-entrypoint.sh"]

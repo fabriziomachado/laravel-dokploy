@@ -86,6 +86,11 @@ services:
       - database
       - redis
 
+    # Entrypoint já executa migrations e cache antes de iniciar o servidor
+    # O entrypoint está no Dockerfile, mas pode ser sobrescrito aqui se necessário
+    # entrypoint: ["docker-entrypoint.sh"]
+    # command: ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=9000"]
+    
     healthcheck:
       test: ["CMD", "php", "artisan", "octane:status"]
       interval: 30s
