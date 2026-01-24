@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - dokploy-setup
     tags:
       - 'v*'
   workflow_dispatch:
