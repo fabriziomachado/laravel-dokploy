@@ -5,6 +5,7 @@ Este guia descreve como fazer deploy da aplicação usando **Dokploy Application
 ## Índice
 
 - [Visão geral](#visão-geral)
+- [Build vs Runtime (variáveis)](#build-vs-runtime-variáveis-de-ambiente)
 - [Nixpacks vs Docker Stack](#nixpacks-vs-docker-stack)
 - [Pré-requisitos](#pré-requisitos)
 - [Passo 1: Repositório e nixpacks.toml](#passo-1-repositório-e-nixpackstoml)
@@ -26,6 +27,19 @@ Este guia descreve como fazer deploy da aplicação usando **Dokploy Application
 - **App root:** `/app` (Nixpacks padrão); docroot Nginx: `/app/public`
 
 O `nixpacks.toml` na raiz do projeto define fases de setup/build e assets estáticos (scripts, configs Supervisor/Nginx/PHP-FPM).
+
+### Build vs Runtime (variáveis de ambiente)
+
+| Momento | Onde estão as variáveis? | Uso |
+|--------|---------------------------|-----|
+| **Build** | Ainda **não** existem as do Dokploy. O build roda antes do container subir. | O `npm run build:ssr` dispara o Wayfinder, que executa `php artisan wayfinder:generate`. Isso exige `.env` + `APP_KEY`. Por isso o `nixpacks.toml` cria um `.env` temporário (a partir de `.env.example` + `key:generate`) **só para o build**. |
+| **Runtime** | **Dokploy** (aba Environment) injeta as variáveis no container. | A aplicação usa **essas** variáveis em produção: `APP_KEY`, `DB_*`, `REDIS_*`, etc. O `.env` do build fica na imagem, mas o Laravel prioriza as variáveis de ambiente do Dokploy. |
+
+Resumo: você configura **tudo no Dokploy** (Environment). O `.env` no build é só um artifício para o Wayfinder conseguir rodar durante o `vite build`.
+
+**O `.env.example` tem o que precisa?** Sim. Usamos como base, alteramos só session/cache/queue (via `sed`) e geramos `APP_KEY`. O resto não é usado no build.
+
+**A cópia não sobrescreve as do Dokploy?** Não. O `cp .env.example .env` roda **só no build** (ao montar a imagem). Em **runtime**, o container recebe as variáveis **injetadas pelo Dokploy**. O Laravel prioriza variáveis de ambiente sobre o `.env` — ou seja, em produção valem as do Dokploy. O `.env` da imagem não substitui nada.
 
 ---
 
@@ -218,6 +232,24 @@ command=bash -c 'exec node /app/bootstrap/ssr/ssr.js'
 - Veja os logs do deploy (build phase).
 - Confirme que `npm run build:ssr` funciona localmente (`npm ci && npm run build:ssr`).
 - Se faltar memória, use Build Server remoto ou CI/CD (imagem pré-buildada).
+
+### Erro do Wayfinder / Rollup (`runCommand`, `wayfinder:generate`)
+
+O plugin **@laravel/vite-plugin-wayfinder** executa `php artisan wayfinder:generate` durante o `vite build`. Isso exige Laravel bootstrap com `.env` e `APP_KEY`.
+
+O `nixpacks.toml` já trata isso no build:
+
+1. Copia `.env.example` → `.env`
+2. Ajusta `SESSION_DRIVER`, `CACHE_STORE`, `QUEUE_CONNECTION` para não usar DB (array/sync)
+3. Roda `php artisan key:generate --force`
+
+Assim o Wayfinder consegue rodar no build. Em runtime, o **APP_KEY** e demais variáveis vêm das configuradas no Dokploy (Environment), não do `.env` do build.
+
+Se o erro continuar, verifique:
+
+- Existência de `.env.example` na raiz do projeto.
+- Se o provider PHP do Nixpacks está ativo (ex.: `composer.json` na raiz).
+- Logs completos do build para ver o output do `artisan wayfinder:generate`.
 
 ---
 

@@ -19,6 +19,12 @@ cmds = [
     "chmod -R ug+rwX /app/storage /app/bootstrap/cache /app/database",
     "chown -R www-data:www-data /app/public",
     "chmod -R ug+rwX /app/public",
+    "# .env só no BUILD (nunca em runtime). Dokploy injeta vars no container; Laravel prioriza env > .env.",
+    "cp .env.example .env",
+    "sed -i 's/^SESSION_DRIVER=.*/SESSION_DRIVER=array/' .env",
+    "sed -i 's/^CACHE_STORE=.*/CACHE_STORE=array/' .env",
+    "sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' .env",
+    "php artisan key:generate --force --no-interaction",
     "npm ci",
     "npm run build:ssr",
 ]
