@@ -6,38 +6,52 @@ if [ -n "$APP_KEY" ]; then
     echo "APP_KEY: ${APP_KEY:0:10}..." >&2
 fi
 
-# Wait for database to be ready (only if DB_HOST is set)
-if [ -n "$DB_HOST" ]; then
-    echo "Waiting for database connection..." >&2
-    until php artisan migrate:status > /dev/null 2>&1; do
-        echo "Database not ready, waiting 2 seconds..." >&2
-        sleep 2
-    done
-    echo "Database connection established!" >&2
-fi
-
-# Ensure bootstrap/cache directory exists and is writable
+# Ensure bootstrap/cache directory exists and is writable FIRST
+# This must be done before any artisan command to prevent cache loading errors
 mkdir -p /var/www/bootstrap/cache
 chmod -R 775 /var/www/bootstrap/cache
 chown -R www-data:www-data /var/www/bootstrap/cache || true
 
 # Remove stale cache files that might cause bootstrap errors
+# Do this before any artisan commands to prevent Laravel from trying to load non-existent cache
 rm -f /var/www/bootstrap/cache/config.php
 rm -f /var/www/bootstrap/cache/routes-*.php
 rm -f /var/www/bootstrap/cache/services.php
 rm -rf /var/www/storage/framework/views/*
 
 # Clear old cache before regenerating
-php artisan config:clear || true
-php artisan route:clear || true
-php artisan view:clear || true
+# Use --no-interaction to prevent any prompts
+php artisan config:clear --no-interaction || true
+php artisan route:clear --no-interaction || true
+php artisan view:clear --no-interaction || true
 
-# Cache configurations after environment variables are loaded
+# Wait for database to be ready (only if DB_HOST is set)
+# Do this AFTER clearing cache to avoid cache loading issues
+if [ -n "$DB_HOST" ]; then
+    echo "Waiting for database connection..." >&2
+    # Use a simple connection test instead of migrate:status to avoid loading routes cache
+    until php -r "try { \$pdo = new PDO('mysql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD')); \$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); exit(0); } catch (Exception \$e) { exit(1); }" > /dev/null 2>&1; do
+        echo "Database not ready, waiting 2 seconds..." >&2
+        sleep 2
+    done
+    echo "Database connection established!" >&2
+fi
+
+# Cache configurations after environment variables are loaded and database is ready
 # Only cache if not in testing environment
 if [ "$APP_ENV" != "testing" ]; then
-    php artisan config:cache || true
-    php artisan route:cache || true
-    php artisan view:cache || true
+    # Generate cache files one by one to ensure they exist before Laravel tries to load them
+    php artisan config:cache --no-interaction || true
+    
+    # Generate route cache - if it fails, clear it to prevent Laravel from trying to load non-existent cache
+    if php artisan route:cache --no-interaction 2>&1; then
+        echo "Route cache generated successfully" >&2
+    else
+        echo "Route cache generation failed, clearing route cache to prevent errors" >&2
+        php artisan route:clear --no-interaction || true
+    fi
+    
+    php artisan view:cache --no-interaction || true
 fi
 
 # Run migrations (only if DB_HOST is set and not in test mode)
