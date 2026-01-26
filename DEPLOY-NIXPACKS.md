@@ -209,13 +209,9 @@ O `start.sh` chama `node /assets/scripts/prestart.mjs` para transformar o `nginx
 - Garantir que o provider **PHP** está ativo (ex. `composer.json` na raiz).
 - Se mesmo assim falhar: incluir um `prestart` próprio em `[staticAssets]` ou usar um `nginx.conf` estático (sem variáveis `$!{...}`) e copiá-lo no `start.sh` em vez do template.
 
-### SSR: `ssr.mjs` vs `ssr.js`
+### SSR: `ssr.js`
 
-O build SSR do Vite/Laravel gera o bundle em `bootstrap/ssr/`. O `nixpacks.toml` usa `ssr.mjs`. Se o seu build gerar `ssr.js`, edite o `worker-inertia-ssr.conf` no `nixpacks.toml`:
-
-```ini
-command=bash -c 'exec node /app/bootstrap/ssr/ssr.js'
-```
+O build SSR gera `bootstrap/ssr/ssr.js`. O `nixpacks.toml` já usa `ssr.js` no worker Inertia SSR. Se em outro ambiente o output for `ssr.mjs`, altere o `worker-inertia-ssr.conf` para o nome correto.
 
 ### Erro 502 / conexão recusada
 
@@ -235,21 +231,17 @@ command=bash -c 'exec node /app/bootstrap/ssr/ssr.js'
 
 ### Erro do Wayfinder / Rollup (`runCommand`, `wayfinder:generate`)
 
-O plugin **@laravel/vite-plugin-wayfinder** executa `php artisan wayfinder:generate` durante o `vite build`. Isso exige Laravel bootstrap com `.env` e `APP_KEY`.
+O plugin **@laravel/vite-plugin-wayfinder** executa `php artisan wayfinder:generate` durante o `vite build`. No Nixpacks, o Laravel pode não subir corretamente nesse momento (env, DB, etc.), e o plugin falha.
 
-O `nixpacks.toml` já trata isso no build:
+**Solução usada neste projeto:**
 
-1. Copia `.env.example` → `.env`
-2. Ajusta `SESSION_DRIVER`, `CACHE_STORE`, `QUEUE_CONNECTION` para não usar DB (array/sync)
-3. Roda `php artisan key:generate --force`
+1. Rodar `php artisan wayfinder:generate` **antes** do `npm run build:ssr` (no `nixpacks.toml`), com `.env` e `APP_KEY` já definidos.
+2. Rodar o build com `WAYFINDER_SKIP=1 npm run build:ssr`. O `vite.config.ts` não carrega o plugin quando `WAYFINDER_SKIP` está definido, então o Vite não chama o Wayfinder de novo e o build não quebra.
 
-Assim o Wayfinder consegue rodar no build. Em runtime, o **APP_KEY** e demais variáveis vêm das configuradas no Dokploy (Environment), não do `.env` do build.
+Se o **wayfinder:generate** explícito falhar (antes do npm), veja o log do `artisan` e confira:
 
-Se o erro continuar, verifique:
-
-- Existência de `.env.example` na raiz do projeto.
-- Se o provider PHP do Nixpacks está ativo (ex.: `composer.json` na raiz).
-- Logs completos do build para ver o output do `artisan wayfinder:generate`.
+- Existência de `.env.example` e do bloco que gera `.env` + `key:generate` no `nixpacks.toml`.
+- Provider PHP do Nixpacks ativo (`composer.json` na raiz).
 
 ---
 

@@ -13,9 +13,7 @@ export default defineConfig({
         }),
         react(),
         tailwindcss(),
-        wayfinder({
-            formVariants: true,
-        }),
+        ...(process.env.WAYFINDER_SKIP ? [] : [wayfinder({ formVariants: true })]),
     ],
     esbuild: {
         jsx: 'automatic',

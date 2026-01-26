@@ -19,14 +19,16 @@ cmds = [
     "chmod -R ug+rwX /app/storage /app/bootstrap/cache /app/database",
     "chown -R www-data:www-data /app/public",
     "chmod -R ug+rwX /app/public",
+    "cd /app",
     "# .env só no BUILD (nunca em runtime). Dokploy injeta vars no container; Laravel prioriza env > .env.",
     "cp .env.example .env",
     "sed -i 's/^SESSION_DRIVER=.*/SESSION_DRIVER=array/' .env",
     "sed -i 's/^CACHE_STORE=.*/CACHE_STORE=array/' .env",
     "sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' .env",
     "php artisan key:generate --force --no-interaction",
+    "php artisan wayfinder:generate",
     "npm ci",
-    "npm run build:ssr",
+    "WAYFINDER_SKIP=1 npm run build:ssr",
 ]
 
 [start]
@@ -131,7 +133,7 @@ group=www-data
 "worker-inertia-ssr.conf" = '''
 [program:worker-inertia-ssr]
 process_name=%(program_name)s_%(process_num)02d
-command=bash -c 'exec node /app/bootstrap/ssr/ssr.mjs'
+command=bash -c 'exec node /app/bootstrap/ssr/ssr.js'
 autostart=true
 autorestart=true
 stopasgroup=true
