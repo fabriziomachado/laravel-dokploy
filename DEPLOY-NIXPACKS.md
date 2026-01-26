@@ -32,14 +32,12 @@ O `nixpacks.toml` na raiz do projeto define fases de setup/build e assets estát
 
 | Momento | Onde estão as variáveis? | Uso |
 |--------|---------------------------|-----|
-| **Build** | Ainda **não** existem as do Dokploy. O build roda antes do container subir. | O `npm run build:ssr` dispara o Wayfinder, que executa `php artisan wayfinder:generate`. Isso exige `.env` + `APP_KEY`. Por isso o `nixpacks.toml` cria um `.env` temporário (a partir de `.env.example` + `key:generate`) **só para o build**. |
-| **Runtime** | **Dokploy** (aba Environment) injeta as variáveis no container. | A aplicação usa **essas** variáveis em produção: `APP_KEY`, `DB_*`, `REDIS_*`, etc. O `.env` do build fica na imagem, mas o Laravel prioriza as variáveis de ambiente do Dokploy. |
+| **Build** | O Dokploy **pode** injetar variáveis no build (ex.: `APP_KEY`). O `nixpacks.toml` cria `.env` a partir de `.env.example`, ajusta session/cache/queue e roda `key:generate` **só se `APP_KEY` não estiver definido**. Assim o `wayfinder:generate` consegue rodar. |
+| **Runtime** | **Dokploy** (aba Environment) injeta as variáveis no container. | A aplicação usa **essas** variáveis em produção. O Laravel prioriza env sobre `.env`. |
 
-Resumo: você configura **tudo no Dokploy** (Environment). O `.env` no build é só um artifício para o Wayfinder conseguir rodar durante o `vite build`.
+Resumo: você configura **tudo no Dokploy** (Environment). O `.env` no build é só para o Wayfinder rodar durante o build.
 
-**O `.env.example` tem o que precisa?** Sim. Usamos como base, alteramos só session/cache/queue (via `sed`) e geramos `APP_KEY`. O resto não é usado no build.
-
-**A cópia não sobrescreve as do Dokploy?** Não. O `cp .env.example .env` roda **só no build** (ao montar a imagem). Em **runtime**, o container recebe as variáveis **injetadas pelo Dokploy**. O Laravel prioriza variáveis de ambiente sobre o `.env` — ou seja, em produção valem as do Dokploy. O `.env` da imagem não substitui nada.
+**Por que mudamos em relação ao Coolify?** O mesmo `nixpacks.toml` base (Supervisor, Nginx, PHP-FPM, Queue, SSR) serve para **Coolify e Dokploy**. No Coolify o build costuma funcionar “direto”. No Dokploy surgiram erros específicos: (1) Wayfinder falhando no Vite → passamos a rodar `wayfinder:generate` antes e `WAYFINDER_SKIP=1` no build; (2) `APP_KEY` já injetado no build → `key:generate` só roda quando `APP_KEY` não existe; (3) “Please provide a valid cache path” → criamos `storage/framework/views`, `cache/data` e `sessions` no build. Ou seja, as mudanças são **só na fase de build** para se adaptar ao Dokploy; o **runtime** (stack, start, configs) segue o mesmo desenho do Coolify. O `.env` da imagem não substitui nada.
 
 ---
 
@@ -240,8 +238,17 @@ O plugin **@laravel/vite-plugin-wayfinder** executa `php artisan wayfinder:gener
 
 Se o **wayfinder:generate** explícito falhar (antes do npm), veja o log do `artisan` e confira:
 
-- Existência de `.env.example` e do bloco que gera `.env` + `key:generate` no `nixpacks.toml`.
+- Existência de `.env.example` e do bloco que gera `.env` no `nixpacks.toml`.
 - Provider PHP do Nixpacks ativo (`composer.json` na raiz).
+- `key:generate` roda só quando `APP_KEY` não está definido no build; se o Dokploy injetar `APP_KEY`, ele é ignorado.
+
+### `APP_KEY is already present in the environment`
+
+O Dokploy injeta `APP_KEY` no build. O `nixpacks.toml` chama `key:generate` **apenas se `APP_KEY` não existir** (`if [ -z "${APP_KEY}" ]; then ...`). Se ainda assim der erro, confira se o `if` está correto no `nixpacks.toml`.
+
+### `Please provide a valid cache path` (wayfinder:generate)
+
+O Wayfinder usa o Blade compiler, que exige `storage/framework/views`. O `nixpacks.toml` cria `storage/framework/views`, `storage/framework/cache/data` e `storage/framework/sessions` antes do `chown`. Se o erro continuar, confira se esses `mkdir` estão presentes e se o `chown` inclui `storage`.
 
 ---
 
