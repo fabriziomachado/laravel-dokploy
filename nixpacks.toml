@@ -26,7 +26,7 @@ cmds = [
     "sed -i 's/^CACHE_STORE=.*/CACHE_STORE=array/' .env",
     "sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' .env",
     "if [ -z \"${APP_KEY}\" ]; then php artisan key:generate --force --no-interaction; fi",
-    "php artisan wayfinder:generate",
+    "php artisan wayfinder:generate --with-form",
     "npm ci",
     "WAYFINDER_SKIP=1 npm run build:ssr",
 ]

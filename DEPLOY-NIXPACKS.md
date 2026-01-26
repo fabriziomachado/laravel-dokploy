@@ -233,7 +233,7 @@ O plugin **@laravel/vite-plugin-wayfinder** executa `php artisan wayfinder:gener
 
 **Solução usada neste projeto:**
 
-1. Rodar `php artisan wayfinder:generate` **antes** do `npm run build:ssr` (no `nixpacks.toml`), com `.env` e `APP_KEY` já definidos.
+1. Rodar `php artisan wayfinder:generate --with-form` **antes** do `npm run build:ssr` (no `nixpacks.toml`), com `.env` e `APP_KEY` já definidos. O `--with-form` é **obrigatório** porque o app usa form variants (ex.: `SessionController.store.form()` no login); sem isso, `/login` quebra com `store.form is not a function`.
 2. Rodar o build com `WAYFINDER_SKIP=1 npm run build:ssr`. O `vite.config.ts` não carrega o plugin quando `WAYFINDER_SKIP` está definido, então o Vite não chama o Wayfinder de novo e o build não quebra.
 
 Se o **wayfinder:generate** explícito falhar (antes do npm), veja o log do `artisan` e confira:
@@ -249,6 +249,24 @@ O Dokploy injeta `APP_KEY` no build. O `nixpacks.toml` chama `key:generate` **ap
 ### `Please provide a valid cache path` (wayfinder:generate)
 
 O Wayfinder usa o Blade compiler, que exige `storage/framework/views`. O `nixpacks.toml` cria `storage/framework/views`, `storage/framework/cache/data` e `storage/framework/sessions` antes do `chown`. Se o erro continuar, confira se esses `mkdir` estão presentes e se o `chown` inclui `storage`.
+
+### `Class "Redis" not found`
+
+Se você usa Redis para cache ou filas (`CACHE_STORE=redis` ou `QUEUE_CONNECTION=redis`), a extensão PHP Redis precisa estar instalada.
+
+**Solução:** Adicione `ext-redis` no `composer.json` na seção `require`:
+
+```json
+"require": {
+    "php": "^8.4.0",
+    "ext-redis": "*",
+    ...
+}
+```
+
+O Nixpacks detecta e instala automaticamente. Após adicionar, faça commit e um novo deploy.
+
+**Alternativa:** Se não usar Redis, altere `CACHE_STORE` e `QUEUE_CONNECTION` para `database` ou `array` no Dokploy (Environment).
 
 ---
 
