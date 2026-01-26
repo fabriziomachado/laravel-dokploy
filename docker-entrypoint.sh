@@ -16,15 +16,29 @@ if [ -n "$DB_HOST" ]; then
     echo "Database connection established!" >&2
 fi
 
+# Ensure bootstrap/cache directory exists and is writable
+mkdir -p /var/www/bootstrap/cache
+chmod -R 775 /var/www/bootstrap/cache
+chown -R www-data:www-data /var/www/bootstrap/cache || true
+
+# Remove stale cache files that might cause bootstrap errors
+rm -f /var/www/bootstrap/cache/config.php
+rm -f /var/www/bootstrap/cache/routes-*.php
+rm -f /var/www/bootstrap/cache/services.php
+rm -rf /var/www/storage/framework/views/*
+
 # Clear old cache before regenerating
 php artisan config:clear || true
 php artisan route:clear || true
 php artisan view:clear || true
 
 # Cache configurations after environment variables are loaded
-php artisan config:cache || true
-php artisan route:cache || true
-php artisan view:cache || true
+# Only cache if not in testing environment
+if [ "$APP_ENV" != "testing" ]; then
+    php artisan config:cache || true
+    php artisan route:cache || true
+    php artisan view:cache || true
+fi
 
 # Run migrations (only if DB_HOST is set and not in test mode)
 if [ -n "$DB_HOST" ] && [ "$APP_ENV" != "testing" ]; then
