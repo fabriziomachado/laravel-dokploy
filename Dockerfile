@@ -33,6 +33,7 @@ RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/t
 # Node.js 18 (Vite compatible)
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
+    && npm install -g npm@latest \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -53,7 +54,10 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 
 # Node files (cache for Vite build)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm --version && \
+    node --version && \
+    npm cache clean --force && \
+    npm ci --prefer-offline --no-audit
 
 # Copy the rest of the project files
 COPY . .
