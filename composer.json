@@ -17,12 +17,12 @@
         "laravel/octane": "^2.13.4",
         "laravel/tinker": "^2.11.0",
         "laravel/wayfinder": "^0.1.13",
-        "nunomaduro/essentials": "^1.0.1"
+        "nunomaduro/essentials": "^1.0.1",
+        "fruitcake/laravel-debugbar": "^4.0.3"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.1.9",
         "fakerphp/faker": "^1.24.1",
-        "fruitcake/laravel-debugbar": "^4.0.3",
         "larastan/larastan": "^3.9.1",
         "laravel/boost": "^2.0.2",
         "laravel/pail": "^1.2.4",
