@@ -1,3 +1,23 @@
+# Stage 1: Build frontend assets with Node.js
+FROM node:20 AS node-build
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci --prefer-offline --no-audit
+
+# Copy files needed for Vite build
+COPY vite.config.ts ./
+COPY resources ./resources
+COPY public ./public
+
+# Build assets
+RUN npm run build
+
+# Stage 2: PHP application
 FROM php:8.4-cli AS base
 
 # System packages and PHP extensions
@@ -30,13 +50,6 @@ RUN curl -L -o swoole.tar.gz https://github.com/swoole/swoole-src/archive/refs/t
     && cd / \
     && rm -rf swoole-src-6.0.0 swoole.tar.gz
 
-# Node.js 18 (Vite compatible)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g npm@latest \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Composer installation
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -52,21 +65,15 @@ RUN mkdir -p bootstrap/cache storage/app storage/framework/cache/data \
 # Install Composer dependencies (without post-scripts)
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
-# Node files (cache for Vite build)
-COPY package.json package-lock.json ./
-RUN npm --version && \
-    node --version && \
-    npm cache clean --force && \
-    npm ci --prefer-offline --no-audit
-
 # Copy the rest of the project files
 COPY . .
 
+# Copy built assets from node-build stage
+RUN mkdir -p public/build
+COPY --from=node-build /app/public/build ./public/build
+
 # Run Composer post-scripts
 RUN composer dump-autoload --optimize
-
-# Vite build
-RUN npm run build
 
 # Laravel config cache (to be done at runtime, not during build)
 RUN php artisan config:clear \
