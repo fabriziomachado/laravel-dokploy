@@ -20,6 +20,7 @@ chown -R www-data:www-data /var/www/bootstrap/cache || true
 rm -f /var/www/bootstrap/cache/config.php
 rm -f /var/www/bootstrap/cache/routes-*.php
 rm -f /var/www/bootstrap/cache/services.php
+rm -f /var/www/bootstrap/cache/packages.php
 rm -rf /var/www/storage/framework/views/*
 
 # Clear old cache before regenerating
@@ -27,6 +28,11 @@ rm -rf /var/www/storage/framework/views/*
 php artisan config:clear --no-interaction || true
 php artisan route:clear --no-interaction || true
 php artisan view:clear --no-interaction || true
+php artisan optimize:clear --no-interaction || true
+
+# Rediscover packages to ensure all service providers are registered
+# This is critical for Debugbar and other packages that use auto-discovery
+php artisan package:discover --ansi --no-interaction || true
 
 # Wait for database to be ready (only if DB_HOST is set)
 # Do this AFTER clearing cache to avoid cache loading issues
