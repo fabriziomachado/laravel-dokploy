@@ -6,6 +6,9 @@ if [ -n "$APP_KEY" ]; then
     echo "APP_KEY: ${APP_KEY:0:10}..." >&2
 fi
 
+# Note: Laravel works with environment variables directly (from docker-compose, Dokploy, etc.)
+# No .env file is needed at runtime - all config comes from environment variables
+
 # Ensure bootstrap/cache directory exists and is writable FIRST
 # This must be done before any artisan command to prevent cache loading errors
 mkdir -p /var/www/bootstrap/cache

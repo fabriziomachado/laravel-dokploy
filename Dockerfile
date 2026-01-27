@@ -1,32 +1,19 @@
-# Stage 1: Build frontend assets with Node.js
-FROM node:20 AS node-build
-
-WORKDIR /app
-
-# Copy package files
-COPY package.json package-lock.json ./
-
-# Install dependencies
-RUN npm ci --prefer-offline --no-audit
-
-# Copy files needed for Vite build
-COPY vite.config.ts ./
-COPY resources ./resources
-COPY public ./public
-
-# Build assets
-RUN npm run build
-
-# Stage 2: PHP application
+# PHP application
 FROM php:8.4-cli AS base
 
-# System packages and PHP extensions
+# System packages, PHP extensions, and Node.js
 RUN apt-get update && apt-get install -y \
     git unzip curl libpng-dev libonig-dev libxml2-dev \
     libzip-dev libpq-dev libcurl4-openssl-dev libssl-dev \
     zlib1g-dev libicu-dev g++ libevent-dev procps \
     pkg-config libhiredis-dev \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring zip exif pcntl bcmath sockets intl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -68,9 +55,36 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 # Copy the rest of the project files
 COPY . .
 
-# Copy built assets from node-build stage
-RUN mkdir -p public/build
-COPY --from=node-build /app/public/build ./public/build
+# Create temporary .env for build only (Laravel needs basic config for artisan commands)
+# This .env will be removed after build - real values come from runtime environment
+RUN if [ ! -f .env ]; then \
+        cp .env.example .env 2>/dev/null || \
+        (echo "APP_NAME=Laravel" > .env && \
+         echo "APP_ENV=production" >> .env && \
+         echo "APP_KEY=" >> .env && \
+         echo "APP_DEBUG=false" >> .env && \
+         echo "APP_URL=http://localhost" >> .env); \
+    fi
+
+# Clear package discovery cache (removes references to dev packages like Debugbar)
+RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php || true
+
+# Generate temporary APP_KEY for build (only needed to run artisan commands)
+# Real APP_KEY will come from environment variables in runtime
+RUN php artisan key:generate --ansi || php artisan key:generate --force || true
+
+# Generate Wayfinder files before Vite build
+# (Wayfinder plugin needs Laravel/PHP to be available and configured)
+RUN php artisan wayfinder:generate --with-form 2>&1 || (echo "❌ Wayfinder generation failed. Error details above." && exit 1)
+
+# Install Node.js dependencies and build frontend assets
+RUN npm ci --prefer-offline --no-audit --ignore-scripts || npm ci --prefer-offline --no-audit \
+    && npm run build \
+    && rm -rf node_modules
+
+# Remove temporary .env file - real values will come from environment variables at runtime
+# (docker-compose, Dokploy, or other orchestration tools will provide the real .env)
+RUN rm -f .env
 
 # Run Composer post-scripts
 RUN composer dump-autoload --optimize
