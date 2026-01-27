@@ -73,7 +73,7 @@ services:
       - CACHE_STORE=${CACHE_STORE:-redis}
       - QUEUE_CONNECTION=${QUEUE_CONNECTION:-database}
       - LOG_CHANNEL=${LOG_CHANNEL:-stack}
-      - LOG_STACK=${LOG_STACK:-single,errorlog}
+      - LOG_STACK=${LOG_STACK:-single,errorlog,stderr}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - MAIL_MAILER=${MAIL_MAILER:-smtp}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
@@ -95,33 +95,33 @@ services:
       test: ["CMD", "php", "artisan", "octane:status"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
 
     # Deploy configuration (Stack/Swarm specific)
     deploy:
       mode: replicated
-      replicas: ${APP_REPLICAS:-2}
+      replicas: ${APP_REPLICAS:-1}
 
       # Placement constraints
       placement:
-        max_replicas_per_node: 2
+        max_replicas_per_node: 1
 
       # Resource limits and reservations
       resources:
         limits:
           cpus: '2'
-          memory: 2G
+          memory: 1G
         reservations:
           cpus: '0.5'
-          memory: 512M
+          memory: 256M
 
       # Restart policy (substitui restart: no compose)
       restart_policy:
         condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+        delay: 10s
+        max_attempts: 10
+        window: 300s
 
       # Update configuration (zero-downtime deployments)
       update_config:
@@ -170,7 +170,7 @@ services:
     command: >
       --default-authentication-plugin=mysql_native_password
       --max_connections=200
-      --innodb_buffer_pool_size=512M
+      --innodb_buffer_pool_size=256M
 
     # Deploy configuration (single replica para database)
     deploy:
@@ -185,16 +185,16 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 1G
+          memory: 512M
         reservations:
           cpus: '0.25'
-          memory: 256M
+          memory: 128M
 
       restart_policy:
         condition: on-failure
         delay: 10s
-        max_attempts: 3
-        window: 120s
+        max_attempts: 10
+        window: 300s
 
   redis:
     image: redis:7-alpine
@@ -238,8 +238,8 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
-        window: 120s
+        max_attempts: 10
+        window: 300s
 
 # =============================================================================
 # Volumes - Docker Named Volumes (compatível com Volume Backups do Dokploy)
