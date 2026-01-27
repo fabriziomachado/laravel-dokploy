@@ -22,6 +22,7 @@ use Laravel\Octane\Listeners\FlushUploadedFiles;
 use Laravel\Octane\Listeners\ReportException;
 use Laravel\Octane\Listeners\StopWorkerIfNecessary;
 use Laravel\Octane\Octane;
+use App\Listeners\FlushDebugbar;
 
 return [
 
@@ -82,6 +83,7 @@ return [
 
         RequestTerminated::class => [
             // FlushUploadedFiles::class,
+            FlushDebugbar::class,
         ],
 
         TaskReceived::class => [
@@ -135,7 +137,7 @@ return [
     ],
 
     'flush' => [
-        //
+        \Fruitcake\LaravelDebugbar\LaravelDebugbar::class,
     ],
 
     /*

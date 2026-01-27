@@ -1,32 +1,35 @@
 version: '3.8'
 
 # =============================================================================
-# Docker Compose Stack para TESTE LOCAL (sem registry)
+# Docker Compose para TESTE LOCAL (sem Docker Swarm)
 # =============================================================================
-# Este arquivo é para testar localmente antes de fazer push para registry.
-# 
+# Este arquivo é para testar localmente usando imagem pré-construída.
+#
 # Como usar:
 #   1. Build local: docker build -t laravel-dokploy-local:latest .
-#   2. Deploy: docker stack deploy -c docker-compose.stack.local.yml laravel-stack
-# 
+#   2. Ou use imagem do registry: docker pull fabriziomachado/laravel-dokploy:latest
+#   3. Execute: docker-compose -f docker-compose.stack.local.yml up -d
+#
 # ⚠️ NÃO use este arquivo no Dokploy - use docker-compose.stack.yml
 # =============================================================================
 
 services:
   app:
-    # Imagem local (já buildada)
-    image: laravel-dokploy-local:latest
-    
+    # Imagem local (já buildada) ou do registry
+    # Para usar imagem do registry, altere para: fabriziomachado/laravel-dokploy:latest
+    image: fabriziomachado/laravel-dokploy:latest
+    restart: unless-stopped
     ports:
-      - "9000"
-    
+      - "9000:9000"
     networks:
       - dokploy-network
-    
     volumes:
       - laravel-storage:/var/www/storage
       - laravel-bootstrap-cache:/var/www/bootstrap/cache
-    
+      # Montar arquivos de configuração para aplicar mudanças do Debugbar
+      - ./config/debugbar.php:/var/www/config/debugbar.php:ro
+      - ./config/octane.php:/var/www/config/octane.php:ro
+      - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_KEY=${APP_KEY}
@@ -55,46 +58,22 @@ services:
       - MAIL_FROM_NAME=${MAIL_FROM_NAME:-${APP_NAME}}
       - OCTANE_SERVER=${OCTANE_SERVER:-swoole}
       - OCTANE_HTTPS=${OCTANE_HTTPS:-false}
-    
+      - DEBUGBAR_ENABLED=${DEBUGBAR_ENABLED:-true}
     depends_on:
-      - database
-      - redis
-    
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "php", "artisan", "octane:status"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    
-    deploy:
-      mode: replicated
-      replicas: ${APP_REPLICAS:-2}
-      placement:
-        max_replicas_per_node: 2
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
-        order: start-first
-      rollback_config:
-        parallelism: 1
-        delay: 5s
 
   database:
     image: mysql:8.0
+    restart: unless-stopped
     networks:
       - dokploy-network
     volumes:
@@ -114,71 +93,26 @@ services:
       --default-authentication-plugin=mysql_native_password
       --max_connections=200
       --innodb_buffer_pool_size=512M
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 120s
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     networks:
       - dokploy-network
     volumes:
       - laravel-redis:/data
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
 
 volumes:
   laravel-db:
-    driver: local
   laravel-redis:
-    driver: local
   laravel-storage:
-    driver: local
   laravel-bootstrap-cache:
-    driver: local
 
 networks:
   dokploy-network:
-    external: true
-    name: dokploy-network

@@ -41,8 +41,9 @@ if [ -n "$DB_HOST" ]; then
 fi
 
 # Cache configurations after environment variables are loaded and database is ready
-# Only cache if not in testing environment
-if [ "$APP_ENV" != "testing" ]; then
+# Only cache if not in testing or local environment (to allow Debugbar to work)
+# Also skip cache if APP_DEBUG is true
+if [ "$APP_ENV" != "testing" ] && [ "$APP_ENV" != "local" ] && [ "$APP_DEBUG" != "true" ]; then
     # Generate cache files one by one to ensure they exist before Laravel tries to load them
     php artisan config:cache --no-interaction || true
     
@@ -55,6 +56,8 @@ if [ "$APP_ENV" != "testing" ]; then
     fi
     
     php artisan view:cache --no-interaction || true
+else
+    echo "Skipping config cache (APP_ENV=$APP_ENV, APP_DEBUG=$APP_DEBUG) to allow Debugbar" >&2
 fi
 
 # Run migrations (only if DB_HOST is set and not in test mode)
