@@ -40,12 +40,21 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            # SHA completo do commit (melhor para rastreabilidade e Dokploy)
+            type=sha,format=long
+            # SHA curto (7 caracteres) para facilitar uso manual
+            type=sha,format=short
+            # Tag com branch + SHA (ex: main-abc123d)
+            type=sha,prefix={{branch}}-
+            # Tag com nome da branch (ex: main, dokploy-setup)
             type=ref,event=branch
-            type=ref,event=pr
+            # Tag latest sempre aponta para a última imagem (independente da branch)
+            type=raw,value=latest
+            # Versão semântica (quando houver tag v*)
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+            # PR tags (para testes)
+            type=ref,event=pr
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -55,6 +64,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # buildcache é apenas para cache, não é uma tag de imagem
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
