@@ -78,6 +78,9 @@ RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php || true
 # Real APP_KEY will come from environment variables in runtime
 RUN php artisan key:generate --ansi || php artisan key:generate --force || true
 
+# Discover packages (ensures all service providers are registered, including Debugbar)
+RUN php artisan package:discover --ansi || true
+
 # Generate Wayfinder files before Vite build
 # (Wayfinder plugin needs Laravel/PHP to be available and configured)
 RUN php artisan wayfinder:generate --with-form 2>&1 || (echo "❌ Wayfinder generation failed. Error details above." && exit 1)
