@@ -18,25 +18,25 @@ services:
   app:
     # Imagem pré-construída no registry (Stack não suporta build)
     # ⚠️ IMPORTANTE: Substitua pela sua imagem completa antes do deploy
-    # 
+    #
     # O Dokploy não fornece registry local. Você precisa usar um dos seguintes:
-    # 
+    #
     # 1. Docker Hub (público ou privado):
     #    image: docker.io/seu-usuario/laravel-dokploy:latest
     #    # Ou apenas: seu-usuario/laravel-dokploy:latest
-    # 
+    #
     # 2. GitHub Container Registry (GHCR):
     #    image: ghcr.io/seu-usuario/laravel-dokploy:latest
-    # 
+    #
     # 3. Digital Ocean Registry:
     #    image: registry.digitalocean.com/seu-registry/laravel-dokploy:latest
-    # 
+    #
     # 4. Registry privado próprio:
     #    image: seu-registry.com/laravel-dokploy:latest
-    # 
+    #
     # ⚠️ IMPORTANTE: Build Server do Dokploy NÃO funciona para Docker Stack
     # Você precisa fazer build e push manualmente antes do deploy
-    # 
+    #
     # Opções:
     # 1. Build manual: docker build -t fabriziomachado/laravel-dokploy:latest . && docker push fabriziomachado/laravel-dokploy:latest
     # 2. Use o script: ./build-and-push.sh fabriziomachado/laravel-dokploy latest
@@ -90,7 +90,7 @@ services:
     # O entrypoint está no Dockerfile, mas pode ser sobrescrito aqui se necessário
     # entrypoint: ["docker-entrypoint.sh"]
     # command: ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=9000"]
-    
+
     healthcheck:
       test: ["CMD", "php", "artisan", "octane:status"]
       interval: 30s
@@ -105,7 +105,7 @@ services:
 
       # Placement constraints
       placement:
-        max_replicas_per_node: 1
+        max_replicas_per_node: ${APP_MAX_REPLICAS_PER_NODE:-1}
 
       # Resource limits and reservations
       resources:
