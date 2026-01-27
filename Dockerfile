@@ -50,7 +50,12 @@ RUN mkdir -p bootstrap/cache storage/app storage/framework/cache/data \
     storage/framework/sessions storage/framework/views storage/logs
 
 # Install Composer dependencies (without post-scripts)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+# If composer.lock is out of sync, Composer will handle it gracefully
+# The --ignore-platform-reqs helps if lock was generated on different platform
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts --ignore-platform-reqs || \
+    (echo "⚠️ composer.lock out of sync, updating..." && \
+     composer update --no-dev --lock --no-interaction --ignore-platform-reqs && \
+     composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts)
 
 # Copy the rest of the project files
 COPY . .
@@ -66,7 +71,7 @@ RUN if [ ! -f .env ]; then \
          echo "APP_URL=http://localhost" >> .env); \
     fi
 
-# Clear package discovery cache (removes references to dev packages like Debugbar)
+# Clear package discovery cache (ensures fresh package discovery)
 RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php || true
 
 # Generate temporary APP_KEY for build (only needed to run artisan commands)
@@ -78,7 +83,11 @@ RUN php artisan key:generate --ansi || php artisan key:generate --force || true
 RUN php artisan wayfinder:generate --with-form 2>&1 || (echo "❌ Wayfinder generation failed. Error details above." && exit 1)
 
 # Install Node.js dependencies and build frontend assets
-RUN npm ci --prefer-offline --no-audit --ignore-scripts || npm ci --prefer-offline --no-audit \
+# If package-lock.json is out of sync, update it first, then install
+RUN (npm ci --prefer-offline --no-audit --ignore-scripts || \
+     (echo "⚠️ package-lock.json out of sync, updating..." && \
+      npm install --package-lock-only --no-audit && \
+      npm ci --prefer-offline --no-audit --ignore-scripts)) \
     && npm run build \
     && rm -rf node_modules
 
