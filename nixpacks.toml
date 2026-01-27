@@ -39,20 +39,38 @@ cmd = "/assets/start.sh"
 #!/bin/bash
 set -e
 
+# Ensure bootstrap/cache directory exists and is writable FIRST
+mkdir -p /app/bootstrap/cache
+chmod -R ug+rwX /app/bootstrap/cache
+
+# Clear cache BEFORE any artisan commands to prevent cache loading errors
+php /app/artisan config:clear || true
+php /app/artisan route:clear || true
+php /app/artisan view:clear || true
+
 # Optional: wait for DB and run migrations (set DB_HOST in Dokploy env)
+# Use PDO connection test instead of migrate:status to avoid loading routes cache
 if [ -n "$DB_HOST" ]; then
     echo "Waiting for database..." >&2
-    until php /app/artisan migrate:status > /dev/null 2>&1; do
+    until php -r "try { \$pdo = new PDO('mysql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD')); \$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); exit(0); } catch (Exception \$e) { exit(1); }" > /dev/null 2>&1; do
         echo "Database not ready, retrying in 2s..." >&2
         sleep 2
     done
     [ "$APP_ENV" != "testing" ] && php /app/artisan migrate --force || true
 fi
 
-php /app/artisan config:clear || true
-php /app/artisan route:clear || true
-php /app/artisan view:clear || true
-[ "$APP_ENV" != "testing" ] && (php /app/artisan config:cache && php /app/artisan route:cache && php /app/artisan view:cache) || true
+# Cache configurations after database is ready
+# Generate route cache with error handling
+if [ "$APP_ENV" != "testing" ]; then
+    php /app/artisan config:cache || true
+    if php /app/artisan route:cache 2>&1; then
+        echo "Route cache generated successfully" >&2
+    else
+        echo "Route cache generation failed, clearing route cache to prevent errors" >&2
+        php /app/artisan route:clear || true
+    fi
+    php /app/artisan view:cache || true
+fi
 
 chown -R www-data:www-data /app/storage /app/bootstrap/cache /app/database
 chmod -R ug+rwX /app/storage /app/bootstrap/cache /app/database
