@@ -3,20 +3,22 @@ version: '3.8'
 # =============================================================================
 # Docker Compose para TESTE LOCAL (sem Docker Swarm)
 # =============================================================================
-# Este arquivo é para testar localmente usando imagem pré-construída.
+# Testa localmente o mesmo cenário do Dokploy, usando imagem pré-construída.
 #
 # Como usar:
-#   1. Build local: docker build -t laravel-dokploy-local:latest .
-#   2. Ou use imagem do registry: docker pull fabriziomachado/laravel-dokploy:latest
-#   3. Execute: docker-compose -f docker-compose.stack.local.yml up -d
+#   1. Build: docker build -t fabriziomachado/laravel-dokploy:latest .
+#      Ou pull: docker pull fabriziomachado/laravel-dokploy:latest
+#   2. Configure .env (APP_KEY, DB_*, etc.)
+#   3. docker-compose -f docker-compose.stack.local.yml up -d
 #
-# ⚠️ NÃO use este arquivo no Dokploy - use docker-compose.stack.yml
+# Para testar exatamente como no Dokploy: comente os volumes de config/entrypoint
+# abaixo (usa só o que está na imagem).
+#
+# ⚠️ NÃO use este arquivo no Dokploy — use docker-compose.stack.yml
 # =============================================================================
 
 services:
   app:
-    # Imagem local (já buildada) ou do registry
-    # Para usar imagem do registry, altere para: fabriziomachado/laravel-dokploy:latest
     image: fabriziomachado/laravel-dokploy:latest
     restart: unless-stopped
     ports:
@@ -26,14 +28,15 @@ services:
     volumes:
       - laravel-storage:/var/www/storage
       - laravel-bootstrap-cache:/var/www/bootstrap/cache
-      # Montar arquivos de configuração para aplicar mudanças do Debugbar
+      # Opcional: monta config/entrypoint locais (editáveis sem rebuild).
+      # Comente estas 3 linhas para testar exatamente como no Dokploy.
       - ./config/debugbar.php:/var/www/config/debugbar.php:ro
       - ./config/octane.php:/var/www/config/octane.php:ro
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
     environment:
-      - APP_ENV=${APP_ENV:-production}
+      - APP_ENV=${APP_ENV:-local}
       - APP_KEY=${APP_KEY}
-      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_DEBUG=${APP_DEBUG:-true}
       - APP_URL=${APP_URL}
       - APP_LOCALE=${APP_LOCALE:-en}
       - APP_FALLBACK_LOCALE=${APP_FALLBACK_LOCALE:-en}
@@ -51,7 +54,7 @@ services:
       - CACHE_STORE=${CACHE_STORE:-redis}
       - QUEUE_CONNECTION=${QUEUE_CONNECTION:-database}
       - LOG_CHANNEL=${LOG_CHANNEL:-stack}
-      - LOG_STACK=${LOG_STACK:-single,errorlog}
+      - LOG_STACK=${LOG_STACK:-single,errorlog,stderr}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - MAIL_MAILER=${MAIL_MAILER:-smtp}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
